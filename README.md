@@ -5,6 +5,7 @@ The open-source platform for monitoring and observability
 [![License](https://img.shields.io/github/license/grafana/grafana)](LICENSE)
 [![Drone](https://drone.grafana.net/api/badges/grafana/grafana/status.svg)](https://drone.grafana.net/grafana/grafana)
 [![Go Report Card](https://goreportcard.com/badge/github.com/grafana/grafana)](https://goreportcard.com/report/github.com/grafana/grafana)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=L00170150_grafana&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=L00170150_grafana)
 
 Grafana allows you to query, visualize, alert on and understand your metrics no matter where they are stored. Create, explore, and share dashboards with your team and foster a data-driven culture:
 
