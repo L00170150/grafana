@@ -26,6 +26,7 @@ import {
   AnnotationQuery,
   AppEvent,
   DashboardCursorSync,
+  dateTime,
   dateTimeFormat,
   dateTimeFormatTimeAgo,
   DateTimeInput,
@@ -206,7 +207,7 @@ export class DashboardModel implements TimeModel {
     }
 
     this.annotations.list.unshift({
-      datasource: '-- Grafana --',
+      datasource: { uid: '-- Grafana --', type: 'grafana' },
       name: 'Annotations & Alerts',
       type: 'dashboard',
       iconColor: DEFAULT_ANNOTATION_COLOR,
@@ -799,7 +800,6 @@ export class DashboardModel implements TimeModel {
   updateRepeatedPanelIds(panel: PanelModel, repeatedByRow?: boolean) {
     panel.repeatPanelId = panel.id;
     panel.id = this.getNextPanelId();
-    panel.key = `${panel.id}`;
     panel.repeatIteration = this.iteration;
     if (repeatedByRow) {
       panel.repeatedByRow = true;
@@ -1071,7 +1071,6 @@ export class DashboardModel implements TimeModel {
   private updateSchema(old: any) {
     const migrator = new DashboardMigrator(this);
     migrator.updateSchema(old);
-    migrator.syncQueryDataSources();
   }
 
   resetOriginalTime() {
@@ -1079,7 +1078,16 @@ export class DashboardModel implements TimeModel {
   }
 
   hasTimeChanged() {
-    return !isEqual(this.time, this.originalTime);
+    const { time, originalTime } = this;
+    if (isEqual(time, originalTime)) {
+      return false;
+    }
+
+    // Compare momemt values vs strings values
+    return !(
+      isEqual(dateTime(time?.from), dateTime(originalTime?.from)) &&
+      isEqual(dateTime(time?.to), dateTime(originalTime?.to))
+    );
   }
 
   resetOriginalVariables(initial = false) {
@@ -1169,6 +1177,20 @@ export class DashboardModel implements TimeModel {
   getVariables = () => {
     return this.getVariablesFromState(this.uid);
   };
+
+  canEditAnnotations(dashboardId: number) {
+    let canEdit = true;
+
+    // if FGAC is enabled there are additional conditions to check
+    if (contextSrv.accessControlEnabled()) {
+      if (dashboardId === 0) {
+        canEdit = !!this.meta.annotationsPermissions?.organization.canEdit;
+      } else {
+        canEdit = !!this.meta.annotationsPermissions?.dashboard.canEdit;
+      }
+    }
+    return this.canAddAnnotations() && canEdit;
+  }
 
   canAddAnnotations() {
     return this.meta.canEdit || this.meta.canMakeEditable;

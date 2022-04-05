@@ -20,7 +20,6 @@ import (
 	"github.com/grafana/grafana/pkg/services/accesscontrol"
 	"github.com/grafana/grafana/pkg/services/alerting"
 	"github.com/grafana/grafana/pkg/services/dashboards"
-	"github.com/grafana/grafana/pkg/services/featuremgmt"
 	"github.com/grafana/grafana/pkg/services/guardian"
 	"github.com/grafana/grafana/pkg/util"
 	"github.com/grafana/grafana/pkg/web"
@@ -117,25 +116,33 @@ func (hs *HTTPServer) GetDashboard(c *models.ReqContext) response.Response {
 		creator = hs.getUserLogin(c.Req.Context(), dash.CreatedBy)
 	}
 
+	annotationPermissions := &dtos.AnnotationPermission{}
+
+	if !hs.AccessControl.IsDisabled() {
+		hs.getAnnotationPermissionsByScope(c, &annotationPermissions.Dashboard, accesscontrol.ScopeAnnotationsTypeDashboard)
+		hs.getAnnotationPermissionsByScope(c, &annotationPermissions.Organization, accesscontrol.ScopeAnnotationsTypeOrganization)
+	}
+
 	meta := dtos.DashboardMeta{
-		IsStarred:   isStarred,
-		Slug:        dash.Slug,
-		Type:        models.DashTypeDB,
-		CanStar:     c.IsSignedIn,
-		CanSave:     canSave,
-		CanEdit:     canEdit,
-		CanAdmin:    canAdmin,
-		CanDelete:   canDelete,
-		Created:     dash.Created,
-		Updated:     dash.Updated,
-		UpdatedBy:   updater,
-		CreatedBy:   creator,
-		Version:     dash.Version,
-		HasAcl:      dash.HasAcl,
-		IsFolder:    dash.IsFolder,
-		FolderId:    dash.FolderId,
-		Url:         dash.GetUrl(),
-		FolderTitle: "General",
+		IsStarred:              isStarred,
+		Slug:                   dash.Slug,
+		Type:                   models.DashTypeDB,
+		CanStar:                c.IsSignedIn,
+		CanSave:                canSave,
+		CanEdit:                canEdit,
+		CanAdmin:               canAdmin,
+		CanDelete:              canDelete,
+		Created:                dash.Created,
+		Updated:                dash.Updated,
+		UpdatedBy:              updater,
+		CreatedBy:              creator,
+		Version:                dash.Version,
+		HasAcl:                 dash.HasAcl,
+		IsFolder:               dash.IsFolder,
+		FolderId:               dash.FolderId,
+		Url:                    dash.GetUrl(),
+		FolderTitle:            "General",
+		AnnotationsPermissions: annotationPermissions,
 	}
 
 	// lookup folder title
@@ -190,6 +197,22 @@ func (hs *HTTPServer) GetDashboard(c *models.ReqContext) response.Response {
 
 	c.TimeRequest(metrics.MApiDashboardGet)
 	return response.JSON(200, dto)
+}
+
+func (hs *HTTPServer) getAnnotationPermissionsByScope(c *models.ReqContext, actions *dtos.AnnotationActions, scope string) {
+	var err error
+
+	evaluate := accesscontrol.EvalPermission(accesscontrol.ActionAnnotationsDelete, scope)
+	actions.CanDelete, err = hs.AccessControl.Evaluate(c.Req.Context(), c.SignedInUser, evaluate)
+	if err != nil {
+		hs.log.Warn("Failed to evaluate permission", "err", err, "action", accesscontrol.ActionAnnotationsDelete, "scope", scope)
+	}
+
+	evaluate = accesscontrol.EvalPermission(accesscontrol.ActionAnnotationsWrite, scope)
+	actions.CanEdit, err = hs.AccessControl.Evaluate(c.Req.Context(), c.SignedInUser, evaluate)
+	if err != nil {
+		hs.log.Warn("Failed to evaluate permission", "err", err, "action", accesscontrol.ActionAnnotationsWrite, "scope", scope)
+	}
 }
 
 func (hs *HTTPServer) getUserLogin(ctx context.Context, userID int64) string {
@@ -360,12 +383,6 @@ func (hs *HTTPServer) postDashboard(c *models.ReqContext, cmd models.SaveDashboa
 		return apierrors.ToDashboardErrorResponse(ctx, hs.pluginStore, err)
 	}
 
-	if newDashboard {
-		if err := hs.setDashboardPermissions(c, cmd, dashboard); err != nil {
-			hs.log.Error("Could not make user admin", "dashboard", dashboard.Title, "user", c.SignedInUser.UserId, "error", err)
-		}
-	}
-
 	// connect library panels for this dashboard after the dashboard is stored and has an ID
 	err = hs.LibraryPanelService.ConnectLibraryPanelsForDashboard(ctx, c.SignedInUser, dashboard)
 	if err != nil {
@@ -381,35 +398,6 @@ func (hs *HTTPServer) postDashboard(c *models.ReqContext, cmd models.SaveDashboa
 		"uid":     dashboard.Uid,
 		"url":     dashboard.GetUrl(),
 	})
-}
-
-func (hs *HTTPServer) setDashboardPermissions(c *models.ReqContext, cmd models.SaveDashboardCommand, dash *models.Dashboard) error {
-	inFolder := dash.FolderId > 0
-	if hs.Features.IsEnabled(featuremgmt.FlagAccesscontrol) {
-		resourceID := strconv.FormatInt(dash.Id, 10)
-		svc := hs.permissionServices.GetDashboardService()
-
-		permissions := []accesscontrol.SetResourcePermissionCommand{
-			{UserID: c.UserId, Permission: models.PERMISSION_ADMIN.String()},
-		}
-
-		if !inFolder {
-			permissions = append(permissions, []accesscontrol.SetResourcePermissionCommand{
-				{BuiltinRole: string(models.ROLE_EDITOR), Permission: models.PERMISSION_EDIT.String()},
-				{BuiltinRole: string(models.ROLE_VIEWER), Permission: models.PERMISSION_VIEW.String()},
-			}...)
-		}
-		_, err := svc.SetPermissions(c.Req.Context(), c.OrgId, resourceID, permissions...)
-		if err != nil {
-			return err
-		}
-	} else if hs.Cfg.EditorsCanAdmin {
-		if err := hs.dashboardService.MakeUserAdmin(c.Req.Context(), cmd.OrgId, cmd.UserId, dash.Id, !inFolder); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // GetHomeDashboard returns the home dashboard.

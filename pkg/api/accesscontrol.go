@@ -1,23 +1,16 @@
 package api
 
 import (
-	"fmt"
-
 	"github.com/grafana/grafana/pkg/models"
 	ac "github.com/grafana/grafana/pkg/services/accesscontrol"
+	"github.com/grafana/grafana/pkg/services/dashboards"
+	"github.com/grafana/grafana/pkg/services/datasources"
 	"github.com/grafana/grafana/pkg/setting"
 )
 
 // API related actions
 const (
 	ActionProvisioningReload = "provisioning:reload"
-
-	ActionDatasourcesRead   = "datasources:read"
-	ActionDatasourcesQuery  = "datasources:query"
-	ActionDatasourcesCreate = "datasources:create"
-	ActionDatasourcesWrite  = "datasources:write"
-	ActionDatasourcesDelete = "datasources:delete"
-	ActionDatasourcesIDRead = "datasources.id:read"
 
 	ActionOrgsRead             = "orgs:read"
 	ActionOrgsPreferencesRead  = "orgs.preferences:read"
@@ -36,11 +29,6 @@ var (
 	ScopeProvisionersPlugins       = ac.Scope("provisioners", "plugins")
 	ScopeProvisionersDatasources   = ac.Scope("provisioners", "datasources")
 	ScopeProvisionersNotifications = ac.Scope("provisioners", "notifications")
-
-	ScopeDatasourcesAll = ac.Scope("datasources", "*")
-	ScopeDatasourceID   = ac.Scope("datasources", "id", ac.Parameter(":id"))
-	ScopeDatasourceUID  = ac.Scope("datasources", "uid", ac.Parameter(":uid"))
-	ScopeDatasourceName = ac.Scope("datasources", "name", ac.Parameter(":name"))
 )
 
 // declareFixedRoles declares to the AccessControl service fixed roles and their
@@ -93,12 +81,12 @@ func (hs *HTTPServer) declareFixedRoles() error {
 			Group:       "Data sources",
 			Permissions: []ac.Permission{
 				{
-					Action: ActionDatasourcesRead,
-					Scope:  ScopeDatasourcesAll,
+					Action: datasources.ActionRead,
+					Scope:  datasources.ScopeAll,
 				},
 				{
-					Action: ActionDatasourcesQuery,
-					Scope:  ScopeDatasourcesAll,
+					Action: datasources.ActionQuery,
+					Scope:  datasources.ScopeAll,
 				},
 			},
 		},
@@ -114,15 +102,15 @@ func (hs *HTTPServer) declareFixedRoles() error {
 			Group:       "Data sources",
 			Permissions: ac.ConcatPermissions(datasourcesReaderRole.Role.Permissions, []ac.Permission{
 				{
-					Action: ActionDatasourcesWrite,
-					Scope:  ScopeDatasourcesAll,
+					Action: datasources.ActionWrite,
+					Scope:  datasources.ScopeAll,
 				},
 				{
-					Action: ActionDatasourcesCreate,
+					Action: datasources.ActionCreate,
 				},
 				{
-					Action: ActionDatasourcesDelete,
-					Scope:  ScopeDatasourcesAll,
+					Action: datasources.ActionDelete,
+					Scope:  datasources.ScopeAll,
 				},
 			}),
 		},
@@ -138,8 +126,8 @@ func (hs *HTTPServer) declareFixedRoles() error {
 			Group:       "Infrequently used",
 			Permissions: []ac.Permission{
 				{
-					Action: ActionDatasourcesIDRead,
-					Scope:  ScopeDatasourcesAll,
+					Action: datasources.ActionIDRead,
+					Scope:  datasources.ScopeAll,
 				},
 			},
 		},
@@ -154,8 +142,8 @@ func (hs *HTTPServer) declareFixedRoles() error {
 			Description: "Only used for open source compatibility. Query data sources.",
 			Group:       "Infrequently used",
 			Permissions: []ac.Permission{
-				{Action: ActionDatasourcesQuery},
-				{Action: ActionDatasourcesRead},
+				{Action: datasources.ActionQuery},
+				{Action: datasources.ActionRead},
 			},
 		},
 		Grants: []string{string(models.ROLE_VIEWER)},
@@ -277,25 +265,56 @@ func (hs *HTTPServer) declareFixedRoles() error {
 			DisplayName: "Annotation reader",
 			Description: "Read annotations and tags",
 			Group:       "Annotations",
-			Version:     1,
+			Version:     2,
 			Permissions: []ac.Permission{
 				{Action: ac.ActionAnnotationsRead, Scope: ac.ScopeAnnotationsAll},
-				{Action: ac.ActionAnnotationsTagsRead, Scope: ac.ScopeAnnotationsTagsAll},
 			},
 		},
 		Grants: []string{string(models.ROLE_VIEWER)},
 	}
 
+	dashboardAnnotationsWriterRole := ac.RoleRegistration{
+		Role: ac.RoleDTO{
+			Name:        "fixed:annotations.dashboard:writer",
+			DisplayName: "Dashboard annotation writer",
+			Description: "Update annotations associated with dashboards.",
+			Group:       "Annotations",
+			Version:     3,
+			Permissions: []ac.Permission{
+				{Action: ac.ActionAnnotationsCreate, Scope: ac.ScopeAnnotationsTypeDashboard},
+				{Action: ac.ActionAnnotationsDelete, Scope: ac.ScopeAnnotationsTypeDashboard},
+				{Action: ac.ActionAnnotationsWrite, Scope: ac.ScopeAnnotationsTypeDashboard},
+			},
+		},
+		Grants: []string{string(models.ROLE_VIEWER)},
+	}
+
+	annotationsWriterRole := ac.RoleRegistration{
+		Role: ac.RoleDTO{
+			Name:        "fixed:annotations:writer",
+			DisplayName: "Annotation writer",
+			Description: "Update all annotations.",
+			Group:       "Annotations",
+			Version:     2,
+			Permissions: []ac.Permission{
+				{Action: ac.ActionAnnotationsCreate, Scope: ac.ScopeAnnotationsAll},
+				{Action: ac.ActionAnnotationsDelete, Scope: ac.ScopeAnnotationsAll},
+				{Action: ac.ActionAnnotationsWrite, Scope: ac.ScopeAnnotationsAll},
+			},
+		},
+		Grants: []string{string(models.ROLE_EDITOR)},
+	}
+
 	dashboardsCreatorRole := ac.RoleRegistration{
 		Role: ac.RoleDTO{
-			Version:     1,
+			Version:     2,
 			Name:        "fixed:dashboards:creator",
 			DisplayName: "Dashboard creator",
 			Description: "Create dashboard in general folder.",
 			Group:       "Dashboards",
 			Permissions: []ac.Permission{
-				{Action: ac.ActionFoldersRead, Scope: ac.Scope("folders", "id", "0")},
-				{Action: ac.ActionDashboardsCreate, Scope: ac.Scope("folders", "id", "0")},
+				{Action: dashboards.ActionFoldersRead, Scope: dashboards.ScopeFoldersProvider.GetResourceScopeUID(ac.GeneralFolderUID)},
+				{Action: ac.ActionDashboardsCreate, Scope: dashboards.ScopeFoldersProvider.GetResourceScopeUID(ac.GeneralFolderUID)},
 			},
 		},
 		Grants: []string{"Editor"},
@@ -325,7 +344,7 @@ func (hs *HTTPServer) declareFixedRoles() error {
 			Permissions: ac.ConcatPermissions(dashboardsReaderRole.Role.Permissions, []ac.Permission{
 				{Action: ac.ActionDashboardsWrite, Scope: ac.ScopeDashboardsAll},
 				{Action: ac.ActionDashboardsDelete, Scope: ac.ScopeDashboardsAll},
-				{Action: ac.ActionDashboardsCreate, Scope: ac.ScopeFoldersAll},
+				{Action: ac.ActionDashboardsCreate, Scope: dashboards.ScopeFoldersAll},
 				{Action: ac.ActionDashboardsPermissionsRead, Scope: ac.ScopeDashboardsAll},
 				{Action: ac.ActionDashboardsPermissionsWrite, Scope: ac.ScopeDashboardsAll},
 			}),
@@ -341,7 +360,7 @@ func (hs *HTTPServer) declareFixedRoles() error {
 			Description: "Create folders.",
 			Group:       "Folders",
 			Permissions: []ac.Permission{
-				{Action: ac.ActionFoldersCreate},
+				{Action: dashboards.ActionFoldersCreate},
 			},
 		},
 		Grants: []string{"Editor"},
@@ -355,8 +374,8 @@ func (hs *HTTPServer) declareFixedRoles() error {
 			Description: "Read all folders and dashboards.",
 			Group:       "Folders",
 			Permissions: []ac.Permission{
-				{Action: ac.ActionFoldersRead, Scope: ac.ScopeFoldersAll},
-				{Action: ac.ActionDashboardsRead, Scope: ac.ScopeFoldersAll},
+				{Action: dashboards.ActionFoldersRead, Scope: dashboards.ScopeFoldersAll},
+				{Action: ac.ActionDashboardsRead, Scope: dashboards.ScopeFoldersAll},
 			},
 		},
 		Grants: []string{"Admin"},
@@ -372,14 +391,14 @@ func (hs *HTTPServer) declareFixedRoles() error {
 			Permissions: ac.ConcatPermissions(
 				foldersReaderRole.Role.Permissions,
 				[]ac.Permission{
-					{Action: ac.ActionFoldersCreate},
-					{Action: ac.ActionFoldersWrite, Scope: ac.ScopeFoldersAll},
-					{Action: ac.ActionFoldersDelete, Scope: ac.ScopeFoldersAll},
-					{Action: ac.ActionDashboardsWrite, Scope: ac.ScopeFoldersAll},
-					{Action: ac.ActionDashboardsDelete, Scope: ac.ScopeFoldersAll},
-					{Action: ac.ActionDashboardsCreate, Scope: ac.ScopeFoldersAll},
-					{Action: ac.ActionDashboardsPermissionsRead, Scope: ac.ScopeFoldersAll},
-					{Action: ac.ActionDashboardsPermissionsWrite, Scope: ac.ScopeFoldersAll},
+					{Action: dashboards.ActionFoldersCreate},
+					{Action: dashboards.ActionFoldersWrite, Scope: dashboards.ScopeFoldersAll},
+					{Action: dashboards.ActionFoldersDelete, Scope: dashboards.ScopeFoldersAll},
+					{Action: ac.ActionDashboardsWrite, Scope: dashboards.ScopeFoldersAll},
+					{Action: ac.ActionDashboardsDelete, Scope: dashboards.ScopeFoldersAll},
+					{Action: ac.ActionDashboardsCreate, Scope: dashboards.ScopeFoldersAll},
+					{Action: ac.ActionDashboardsPermissionsRead, Scope: dashboards.ScopeFoldersAll},
+					{Action: ac.ActionDashboardsPermissionsWrite, Scope: dashboards.ScopeFoldersAll},
 				}),
 		},
 		Grants: []string{"Admin"},
@@ -388,7 +407,8 @@ func (hs *HTTPServer) declareFixedRoles() error {
 	return hs.AccessControl.DeclareFixedRoles(
 		provisioningWriterRole, datasourcesReaderRole, datasourcesWriterRole, datasourcesIdReaderRole,
 		datasourcesCompatibilityReaderRole, orgReaderRole, orgWriterRole,
-		orgMaintainerRole, teamsCreatorRole, teamsWriterRole, datasourcesExplorerRole, annotationsReaderRole,
+		orgMaintainerRole, teamsCreatorRole, teamsWriterRole, datasourcesExplorerRole,
+		annotationsReaderRole, dashboardAnnotationsWriterRole, annotationsWriterRole,
 		dashboardsCreatorRole, dashboardsReaderRole, dashboardsWriterRole,
 		foldersCreatorRole, foldersReaderRole, foldersWriterRole, apikeyWriterRole,
 	)
@@ -396,29 +416,6 @@ func (hs *HTTPServer) declareFixedRoles() error {
 
 // Evaluators
 // here is the list of complex evaluators we use in this package
-
-// dataSourcesConfigurationAccessEvaluator is used to protect the "Configure > Data sources" tab access
-var dataSourcesConfigurationAccessEvaluator = ac.EvalAll(
-	ac.EvalPermission(ActionDatasourcesRead),
-	ac.EvalAny(
-		ac.EvalPermission(ActionDatasourcesCreate),
-		ac.EvalPermission(ActionDatasourcesDelete),
-		ac.EvalPermission(ActionDatasourcesWrite),
-	),
-)
-
-// dataSourcesNewAccessEvaluator is used to protect the "Configure > Data sources > New" page access
-var dataSourcesNewAccessEvaluator = ac.EvalAll(
-	ac.EvalPermission(ActionDatasourcesRead),
-	ac.EvalPermission(ActionDatasourcesCreate),
-	ac.EvalPermission(ActionDatasourcesWrite),
-)
-
-// dataSourcesEditAccessEvaluator is used to protect the "Configure > Data sources > Edit" page access
-var dataSourcesEditAccessEvaluator = ac.EvalAll(
-	ac.EvalPermission(ActionDatasourcesRead),
-	ac.EvalPermission(ActionDatasourcesWrite),
-)
 
 // orgPreferencesAccessEvaluator is used to protect the "Configure > Preferences" page access
 var orgPreferencesAccessEvaluator = ac.EvalAny(
@@ -467,15 +464,16 @@ var teamsEditAccessEvaluator = ac.EvalAll(
 
 // Metadata helpers
 // getAccessControlMetadata returns the accesscontrol metadata associated with a given resource
-func (hs *HTTPServer) getAccessControlMetadata(c *models.ReqContext, resource string, id int64) ac.Metadata {
-	key := fmt.Sprintf("%d", id)
-	ids := map[string]bool{key: true}
-
-	return hs.getMultiAccessControlMetadata(c, resource, ids)[key]
+func (hs *HTTPServer) getAccessControlMetadata(c *models.ReqContext,
+	orgID int64, prefix string, resourceID string) ac.Metadata {
+	ids := map[string]bool{resourceID: true}
+	return hs.getMultiAccessControlMetadata(c, orgID, prefix, ids)[resourceID]
 }
 
 // getMultiAccessControlMetadata returns the accesscontrol metadata associated with a given set of resources
-func (hs *HTTPServer) getMultiAccessControlMetadata(c *models.ReqContext, resource string, ids map[string]bool) map[string]ac.Metadata {
+// Context must contain permissions in the given org (see LoadPermissionsMiddleware or AuthorizeInOrgMiddleware)
+func (hs *HTTPServer) getMultiAccessControlMetadata(c *models.ReqContext,
+	orgID int64, prefix string, resourceIDs map[string]bool) map[string]ac.Metadata {
 	if hs.AccessControl.IsDisabled() || !c.QueryBool("accesscontrol") {
 		return map[string]ac.Metadata{}
 	}
@@ -484,10 +482,10 @@ func (hs *HTTPServer) getMultiAccessControlMetadata(c *models.ReqContext, resour
 		return map[string]ac.Metadata{}
 	}
 
-	permissions, ok := c.SignedInUser.Permissions[c.OrgId]
+	permissions, ok := c.SignedInUser.Permissions[orgID]
 	if !ok {
 		return map[string]ac.Metadata{}
 	}
 
-	return ac.GetResourcesMetadata(c.Req.Context(), permissions, resource, ids)
+	return ac.GetResourcesMetadata(c.Req.Context(), permissions, prefix, resourceIDs)
 }

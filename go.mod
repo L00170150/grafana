@@ -17,8 +17,6 @@ require (
 	cloud.google.com/go/storage v1.18.2
 	cuelang.org/go v0.4.0
 	github.com/Azure/azure-sdk-for-go v59.3.0+incompatible
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v0.19.0
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v0.10.0
 	github.com/Azure/go-autorest/autorest v0.11.22
 	github.com/BurntSushi/toml v0.3.1
 	github.com/Masterminds/semver v1.5.0
@@ -54,7 +52,8 @@ require (
 	github.com/gosimple/slug v1.9.0
 	github.com/grafana/cuetsy v0.0.0-20211119211437-8c25464cc9bf
 	github.com/grafana/grafana-aws-sdk v0.10.1
-	github.com/grafana/grafana-plugin-sdk-go v0.126.0
+	github.com/grafana/grafana-azure-sdk-go v1.0.0
+	github.com/grafana/grafana-plugin-sdk-go v0.129.0
 	github.com/grafana/loki v1.6.2-0.20211015002020-7832783b1caa
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/hashicorp/go-hclog v0.16.1
@@ -93,7 +92,7 @@ require (
 	github.com/uber/jaeger-client-go v2.29.1+incompatible
 	github.com/unknwon/com v1.0.1
 	github.com/urfave/cli/v2 v2.3.0
-	github.com/vectordotdev/go-datemath v0.1.1-0.20220110192739-f9ce83ec349f
+	github.com/vectordotdev/go-datemath v0.1.1-0.20220323213446-f3954d0b18ae
 	github.com/weaveworks/common v0.0.0-20210913144402-035033b78a78
 	github.com/xorcare/pointer v1.1.0
 	github.com/yudai/gojsondiff v1.0.0
@@ -258,13 +257,19 @@ require (
 )
 
 require (
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v0.19.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v0.10.0 // indirect
 	github.com/Azure/go-autorest/autorest/adal v0.9.17 // indirect
 	github.com/census-instrumentation/opencensus-proto v0.3.0 // indirect
+	github.com/chromedp/cdproto v0.0.0-20220208224320-6efb837e6bc2 // indirect
 	github.com/cncf/udpa/go v0.0.0-20210930031921-04548b0d99d4 // indirect
 	github.com/cncf/xds/go v0.0.0-20211011173535-cb28da3451f1 // indirect
 	github.com/containerd/containerd v1.5.9 // indirect
+	github.com/elazarl/goproxy v0.0.0-20220115173737-adb46da277ac // indirect
 	github.com/envoyproxy/go-control-plane v0.10.1 // indirect
 	github.com/envoyproxy/protoc-gen-validate v0.6.2 // indirect
+	github.com/getkin/kin-openapi v0.91.0 // indirect
+	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32 // indirect
 	github.com/grafana/dskit v0.0.0-20211011144203-3a88ec0b675f // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/klauspost/compress v1.13.6 // indirect
